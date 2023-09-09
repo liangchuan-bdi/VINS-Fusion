@@ -45,7 +45,17 @@ int MIN_DIST;
 double F_THRESHOLD;
 int SHOW_TRACK;
 int FLOW_BACK;
+int IMU_PROP_PUB_FREQ;
+double IMU_PROP_PUB_INTERVAL;
+std::string IMU_PROP_TOPIC_NAME;
+std::string IMU_PROP_FRAME_ID;
+std::string IMU_PROP_CHILD_FRAME_ID;
+int PUB_ODOM_TF;
+int PUB_EXTRINSIC_TF;
 
+double SysState_MinFeatPercent;
+double SysState_MinDepth;
+double SysState_MaxDepth;
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -86,8 +96,19 @@ void readParameters(std::string config_file)
     F_THRESHOLD = fsSettings["F_threshold"];
     SHOW_TRACK = fsSettings["show_track"];
     FLOW_BACK = fsSettings["flow_back"];
+    PUB_ODOM_TF = fsSettings["pub_odom_tf"] ;
+    PUB_EXTRINSIC_TF = fsSettings["pub_extrinsic_tf"] ;
+    fsSettings["imu_prop_topic_name"] >> IMU_PROP_TOPIC_NAME;
+    fsSettings["imu_prop_frame_id"] >> IMU_PROP_FRAME_ID;
+    fsSettings["imu_prop_child_frame_id"] >> IMU_PROP_CHILD_FRAME_ID;
+    IMU_PROP_PUB_FREQ = fsSettings["imu_prop_pub_freq"];
+    IMU_PROP_PUB_INTERVAL = 1.0 / IMU_PROP_PUB_FREQ;
 
     MULTIPLE_THREAD = fsSettings["multiple_thread"];
+
+    SysState_MinFeatPercent = fsSettings["SysState_MinFeatPercent"];
+    SysState_MinDepth = fsSettings["SysState_MinDepth"];
+    SysState_MaxDepth = fsSettings["SysState_MaxDepth"];
 
     USE_IMU = fsSettings["imu"];
     printf("USE_IMU: %d\n", USE_IMU);

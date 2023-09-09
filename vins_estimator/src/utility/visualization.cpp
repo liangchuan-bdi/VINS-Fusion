@@ -33,7 +33,7 @@ size_t pub_counter = 0;
 
 void registerPub(ros::NodeHandle &n)
 {
-    pub_latest_odometry = n.advertise<nav_msgs::Odometry>("imu_propagate", 1000);
+    pub_latest_odometry = n.advertise<nav_msgs::Odometry>(IMU_PROP_TOPIC_NAME, 1000);
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
@@ -50,11 +50,21 @@ void registerPub(ros::NodeHandle &n)
     cameraposevisual.setLineWidth(0.01);
 }
 
-void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, double t)
+void pubLatestOdometry(const Estimator &estimator, const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, double t)
 {
+  static double lastPubTime = 0;
+
+  if ((t - lastPubTime) < IMU_PROP_PUB_INTERVAL)
+  {
+    return;
+  }
+  
+  lastPubTime = t;
+
     nav_msgs::Odometry odometry;
     odometry.header.stamp = ros::Time(t);
-    odometry.header.frame_id = "world";
+    odometry.header.frame_id = IMU_PROP_FRAME_ID;
+    odometry.child_frame_id = IMU_PROP_CHILD_FRAME_ID;
     odometry.pose.pose.position.x = P.x();
     odometry.pose.pose.position.y = P.y();
     odometry.pose.pose.position.z = P.z();
@@ -65,6 +75,11 @@ void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, co
     odometry.twist.twist.linear.x = V.x();
     odometry.twist.twist.linear.y = V.y();
     odometry.twist.twist.linear.z = V.z();
+
+    odometry.pose.covariance[0] = estimator.featAmountOK ? 1.0 : -1.0;
+    odometry.pose.covariance[1] = estimator.featTooClose ? 1.0 : -1.0;
+    odometry.pose.covariance[2] = estimator.featTooFar ? 1.0 : -1.0;
+
     pub_latest_odometry.publish(odometry);
 }
 
@@ -117,8 +132,8 @@ void printStatistics(const Estimator &estimator, double t)
     sum_of_path += (estimator.Ps[WINDOW_SIZE] - last_path).norm();
     last_path = estimator.Ps[WINDOW_SIZE];
     ROS_DEBUG("sum of path %f", sum_of_path);
-    if (ESTIMATE_TD)
-        ROS_INFO("td %f", estimator.td);
+    // if (ESTIMATE_TD)
+    //     ROS_INFO("td %f", estimator.td);
 }
 
 void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
@@ -170,8 +185,8 @@ void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
               << estimator.Vs[WINDOW_SIZE].z() << "," << endl;
         foutC.close();
         Eigen::Vector3d tmp_T = estimator.Ps[WINDOW_SIZE];
-        printf("time: %f, t: %f %f %f q: %f %f %f %f \n", header.stamp.toSec(), tmp_T.x(), tmp_T.y(), tmp_T.z(),
-                                                          tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z());
+        // printf("time: %f, t: %f %f %f q: %f %f %f %f \n", header.stamp.toSec(), tmp_T.x(), tmp_T.y(), tmp_T.z(),
+        //                                                   tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z());
     }
 }
 
@@ -209,7 +224,7 @@ void pubKeyPoses(const Estimator &estimator, const std_msgs::Header &header)
     pub_key_poses.publish(key_poses);
 }
 
-void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
+void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header, const std::string &img_frame)
 {
     int idx2 = WINDOW_SIZE - 1;
 
@@ -222,6 +237,7 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
         nav_msgs::Odometry odometry;
         odometry.header = header;
         odometry.header.frame_id = "world";
+        odometry.child_frame_id = img_frame;
         odometry.pose.pose.position.x = P.x();
         odometry.pose.pose.position.y = P.y();
         odometry.pose.pose.position.z = P.z();
@@ -304,41 +320,45 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
 }
 
 
-void pubTF(const Estimator &estimator, const std_msgs::Header &header)
+void pubTF(const Estimator &estimator, const std_msgs::Header &header, const std::string &img_frame)
 {
-    if( estimator.solver_flag != Estimator::SolverFlag::NON_LINEAR)
-        return;
-    static tf::TransformBroadcaster br;
-    tf::Transform transform;
-    tf::Quaternion q;
+  if (estimator.solver_flag != Estimator::SolverFlag::NON_LINEAR) return;
+
+  static tf::TransformBroadcaster br;
+  tf::Transform transform;
+  tf::Quaternion q;
+
+  if (PUB_ODOM_TF)
+  {
     // body frame
     Vector3d correct_t;
     Quaterniond correct_q;
     correct_t = estimator.Ps[WINDOW_SIZE];
     correct_q = estimator.Rs[WINDOW_SIZE];
 
-    transform.setOrigin(tf::Vector3(correct_t(0),
-                                    correct_t(1),
-                                    correct_t(2)));
+    transform.setOrigin(tf::Vector3(correct_t(0), correct_t(1), correct_t(2)));
     q.setW(correct_q.w());
     q.setX(correct_q.x());
     q.setY(correct_q.y());
     q.setZ(correct_q.z());
     transform.setRotation(q);
-    br.sendTransform(tf::StampedTransform(transform, header.stamp, "world", "body"));
+    br.sendTransform(
+        tf::StampedTransform(transform, header.stamp, "world", "fcu_copy"));
+  }
 
+  if (PUB_EXTRINSIC_TF)
+  {
     // camera frame
-    transform.setOrigin(tf::Vector3(estimator.tic[0].x(),
-                                    estimator.tic[0].y(),
+    transform.setOrigin(tf::Vector3(estimator.tic[0].x(), estimator.tic[0].y(),
                                     estimator.tic[0].z()));
     q.setW(Quaterniond(estimator.ric[0]).w());
     q.setX(Quaterniond(estimator.ric[0]).x());
     q.setY(Quaterniond(estimator.ric[0]).y());
     q.setZ(Quaterniond(estimator.ric[0]).z());
     transform.setRotation(q);
-    br.sendTransform(tf::StampedTransform(transform, header.stamp, "body", "camera"));
+    br.sendTransform(
+        tf::StampedTransform(transform, header.stamp, "fcu_copy", img_frame));
 
-    
     nav_msgs::Odometry odometry;
     odometry.header = header;
     odometry.header.frame_id = "world";
@@ -351,7 +371,7 @@ void pubTF(const Estimator &estimator, const std_msgs::Header &header)
     odometry.pose.pose.orientation.z = tmp_q.z();
     odometry.pose.pose.orientation.w = tmp_q.w();
     pub_extrinsic.publish(odometry);
-
+  }
 }
 
 void pubKeyframe(const Estimator &estimator)

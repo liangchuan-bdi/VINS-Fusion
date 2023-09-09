@@ -15,6 +15,7 @@ Estimator::Estimator(): f_manager{Rs}
     ROS_INFO("init begins");
     initThreadFlag = false;
     clearState();
+
 }
 
 Estimator::~Estimator()
@@ -157,8 +158,9 @@ void Estimator::changeSensorType(int use_imu, int use_stereo)
     }
 }
 
-void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
+void Estimator::inputImage(double t, const std::string &img_frame_, const cv::Mat &_img, const cv::Mat &_img1)
 {
+    img_frame = img_frame_;
     inputImageCnt++;
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
     TicToc featureTrackerTime;
@@ -177,7 +179,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     
     if(MULTIPLE_THREAD)  
     {     
-        if(inputImageCnt % 2 == 0)
+        // if(inputImageCnt % 2 == 0)
         {
             mBuf.lock();
             featureBuf.push(make_pair(t, featureFrame));
@@ -208,7 +210,7 @@ void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vec
     {
         mPropagate.lock();
         fastPredictIMU(t, linearAcceleration, angularVelocity);
-        pubLatestOdometry(latest_P, latest_Q, latest_V, t);
+        pubLatestOdometry(*this, latest_P, latest_Q, latest_V, t);
         mPropagate.unlock();
     }
 }
@@ -326,10 +328,11 @@ void Estimator::processMeasurements()
 
             pubOdometry(*this, header);
             pubKeyPoses(*this, header);
-            pubCameraPose(*this, header);
+            pubCameraPose(*this, header, img_frame);
             pubPointCloud(*this, header);
             pubKeyframe(*this);
-            pubTF(*this, header);
+            pubTF(*this, header, img_frame);
+            checkSysState();
             mProcess.unlock();
         }
 
@@ -341,8 +344,39 @@ void Estimator::processMeasurements()
     }
 }
 
+void Estimator::checkSysState()
+{
+  int numGoodFeats = 0;
+  double sumDepth = 0.0;
 
-void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector)
+  for (auto &it_per_id : f_manager.feature)
+  {
+    const int used_num = it_per_id.feature_per_frame.size();
+
+    if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+    {
+      continue;
+    }
+
+    if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 ||
+        it_per_id.solve_flag != 1)
+    {
+      continue;
+    }
+
+    numGoodFeats++;
+    sumDepth += it_per_id.estimated_depth;
+  }
+
+  featAmountOK = numGoodFeats / MAX_CNT * 100.0 >= SysState_MinFeatPercent;
+
+  const double avgDepth = (numGoodFeats > 0) ? (sumDepth / numGoodFeats) : 1e6;
+  featTooClose = avgDepth < SysState_MinDepth;
+  featTooFar = avgDepth > SysState_MaxDepth;
+}
+
+void Estimator::initFirstIMUPose(
+    vector<pair<double, Eigen::Vector3d>> &accVector)
 {
     printf("init first imu pose\n");
     initFirstPoseFlag = true;

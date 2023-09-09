@@ -41,7 +41,7 @@ extern int IMAGE_ROW, IMAGE_COL;
 
 void registerPub(ros::NodeHandle &n);
 
-void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, double t);
+void pubLatestOdometry(const Estimator &estimator, const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, double t);
 
 void pubTrackImage(const cv::Mat &imgTrack, const double t);
 
@@ -53,11 +53,11 @@ void pubInitialGuess(const Estimator &estimator, const std_msgs::Header &header)
 
 void pubKeyPoses(const Estimator &estimator, const std_msgs::Header &header);
 
-void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header);
+void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header, const std::string &img_frame);
 
 void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header);
 
-void pubTF(const Estimator &estimator, const std_msgs::Header &header);
+void pubTF(const Estimator &estimator, const std_msgs::Header &header, const std::string &img_frame);
 
 void pubKeyframe(const Estimator &estimator);
 

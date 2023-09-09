@@ -28,10 +28,11 @@ queue<sensor_msgs::PointCloudConstPtr> feature_buf;
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
 std::mutex m_buf;
-
+std::string img0_frame;
 
 void img0_callback(const sensor_msgs::ImageConstPtr &img_msg)
 {
+    img0_frame = img_msg->header.frame_id;
     m_buf.lock();
     img0_buf.push(img_msg);
     m_buf.unlock();
@@ -106,7 +107,7 @@ void sync_process()
             }
             m_buf.unlock();
             if(!image0.empty())
-                estimator.inputImage(time, image0, image1);
+                estimator.inputImage(time, img0_frame, image0, image1);
         }
         else
         {
@@ -123,7 +124,7 @@ void sync_process()
             }
             m_buf.unlock();
             if(!image.empty())
-                estimator.inputImage(time, image);
+                estimator.inputImage(time, img0_frame, image);
         }
 
         std::chrono::milliseconds dura(2);

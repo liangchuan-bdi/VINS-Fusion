@@ -48,7 +48,7 @@ class Estimator
     void initFirstPose(Eigen::Vector3d p, Eigen::Matrix3d r);
     void inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity);
     void inputFeature(double t, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &featureFrame);
-    void inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
+    void inputImage(double t, const std::string &img_frame_, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
     void processIMU(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity);
     void processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header);
     void processMeasurements();
@@ -79,6 +79,8 @@ class Estimator
     void fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Eigen::Vector3d angular_velocity);
     bool IMUAvailable(double t);
     void initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector);
+
+    void checkSysState();
 
     enum SolverFlag
     {
@@ -139,6 +141,10 @@ class Estimator
     MotionEstimator m_estimator;
     InitialEXRotation initial_ex_rotation;
 
+    bool featAmountOK = false;
+    bool featTooClose = true;
+    bool featTooFar = true;
+
     bool first_imu;
     bool is_valid, is_key;
     bool failure_occur;
@@ -174,4 +180,6 @@ class Estimator
 
     bool initFirstPoseFlag;
     bool initThreadFlag;
+
+    std::string img_frame;
 };

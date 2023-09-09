@@ -63,6 +63,17 @@ extern int MIN_DIST;
 extern double F_THRESHOLD;
 extern int SHOW_TRACK;
 extern int FLOW_BACK;
+extern int IMU_PROP_PUB_FREQ;
+extern double IMU_PROP_PUB_INTERVAL;
+extern std::string IMU_PROP_TOPIC_NAME;
+extern std::string IMU_PROP_FRAME_ID;
+extern std::string IMU_PROP_CHILD_FRAME_ID;
+extern int PUB_ODOM_TF;
+extern int PUB_EXTRINSIC_TF;
+
+extern double SysState_MinFeatPercent;
+extern double SysState_MinDepth;
+extern double SysState_MaxDepth;
 
 void readParameters(std::string config_file);
 

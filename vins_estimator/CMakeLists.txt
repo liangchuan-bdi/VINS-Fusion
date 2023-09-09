@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(vins)
 
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11")
+set(CMAKE_CXX_FLAGS "-std=c++14")
 #-DEIGEN_USE_MKL_ALL")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 
@@ -16,13 +16,14 @@ find_package(catkin REQUIRED COMPONENTS
     camera_models
     image_transport)
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3 REQUIRED)
 
 # message(WARNING "OpenCV_VERSION: ${OpenCV_VERSION}")
 
 find_package(Ceres REQUIRED)
 
-include_directories(${catkin_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS})
+include_directories(${catkin_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS}
+)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3)
@@ -62,3 +63,23 @@ target_link_libraries(kitti_odom_test vins_lib)
 add_executable(kitti_gps_test src/KITTIGPSTest.cpp)
 target_link_libraries(kitti_gps_test vins_lib) 
 
+#############
+## Install ##
+#############
+
+## Mark executables and/or libraries for installation
+install(TARGETS vins_node vins_lib
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+)
+
+## Copy launch files
+install(DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+  FILES_MATCHING PATTERN "*.launch"
+)
+
+## Copy configs
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/../config/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)
